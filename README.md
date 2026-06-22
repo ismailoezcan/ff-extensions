@@ -10,18 +10,20 @@ unter `src/<lang>/<source>` ergaenzt werden. Der Gradle-Build laedt alle
 Extensions unter `src/`, und der Repo-Generator erzeugt daraus automatisch den
 statischen Suwayomi/Mihon-Index.
 
-## GitHub Pages
+## Extension-Repo-URL
 
 Der Workflow `.github/workflows/publish.yml` baut bei jedem Push auf `main` alle
-Release-APKs, erzeugt `repo/index.min.json` und published den Ordner `repo/` per
-GitHub Pages.
+Release-APKs, erzeugt `repo/index.min.json` und published den Ordner `repo/` auf
+den Branch `repo`.
 
-Nach dem ersten Push muss in GitHub unter `Settings -> Pages` als Build-Quelle
-`GitHub Actions` aktiv sein. Die Extension-Repo-URL fuer Suwayomi ist danach:
+Die Extension-Repo-URL fuer Suwayomi/Mihon ist:
 
 ```text
-https://<github-user>.github.io/<repo>/index.min.json
+https://raw.githubusercontent.com/ismailoezcan/ff-extensions/repo/index.min.json
 ```
+
+Das raw.githubusercontent.com-Format ist wichtig, weil Suwayomi aktuell
+Extension-Repos im GitHub/Raw-GitHub-Format validiert.
 
 ## Lokaler Build
 
@@ -50,8 +52,8 @@ Der generierte statische Repo-Output liegt unter:
 repo/
 ```
 
-`repo/` ist bewusst nicht versioniert, weil GitHub Actions es reproduzierbar neu
-erzeugt.
+`repo/` ist im `main`-Branch bewusst nicht versioniert, weil GitHub Actions es
+reproduzierbar neu erzeugt und auf den separaten `repo`-Branch pushed.
 
 ## Updates
 
@@ -116,7 +118,7 @@ uebernimmt Suwayomi.
 
 ## Smoke
 
-1. GitHub-Pages-URL in Suwayomi als Extension-Repo eintragen.
+1. Raw-GitHub-URL in Suwayomi als Extension-Repo eintragen.
 2. Extension installieren.
 3. Source `OnePieceTube (DE)` oeffnen.
 4. `One Piece` suchen.
