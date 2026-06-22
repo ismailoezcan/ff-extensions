@@ -120,8 +120,8 @@ class GenerateRepoIndexTest(unittest.TestCase):
             self.assertEqual(index[0]["version"], "1.4.1")
             self.assertEqual(index[1]["code"], 7)
             self.assertEqual(index[0]["sources"][0]["id"], generator.source_id("OnePieceTube", "de", 1))
-            self.assertTrue((root / "repo" / "tachiyomi-de.onepiecetube-v1.4.1-release.apk").exists())
-            self.assertTrue((root / "repo" / "tachiyomi-en.example-v1.4.7-release.apk").exists())
+            self.assertTrue((root / "repo" / "apk" / "tachiyomi-de.onepiecetube-v1.4.1-release.apk").exists())
+            self.assertTrue((root / "repo" / "apk" / "tachiyomi-en.example-v1.4.7-release.apk").exists())
             written = json.loads((root / "repo" / "index.min.json").read_text(encoding="utf-8"))
             self.assertEqual(written, index)
 

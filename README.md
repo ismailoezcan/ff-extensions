@@ -50,6 +50,8 @@ Der generierte statische Repo-Output liegt unter:
 
 ```text
 repo/
+repo/apk/
+repo/icon/
 ```
 
 `repo/` ist im `main`-Branch bewusst nicht versioniert, weil GitHub Actions es

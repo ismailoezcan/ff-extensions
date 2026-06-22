@@ -94,12 +94,14 @@ def extension_entry(extension_dir: Path) -> tuple[dict[str, Any], Path]:
 def prepare_repo_dir(root: Path) -> Path:
     repo_dir = root / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
-    for stale in [*repo_dir.glob("*.apk"), repo_dir / "index.min.json"]:
+    for stale in [*repo_dir.glob("*.apk"), repo_dir / "index.min.json", repo_dir / "icon.png"]:
         stale.unlink(missing_ok=True)
+    for stale_dir in [repo_dir / "apk", repo_dir / "icon"]:
+        if stale_dir.exists():
+            shutil.rmtree(stale_dir)
 
-    icon = root / "assets" / "icon.png"
-    if icon.exists():
-        shutil.copy2(icon, repo_dir / "icon.png")
+    (repo_dir / "apk").mkdir(parents=True, exist_ok=True)
+    (repo_dir / "icon").mkdir(parents=True, exist_ok=True)
 
     return repo_dir
 
@@ -110,7 +112,10 @@ def generate_repository(root: Path = ROOT) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for extension_dir in extension_dirs(root):
         entry, apk_path = extension_entry(extension_dir)
-        shutil.copy2(apk_path, repo_dir / apk_path.name)
+        shutil.copy2(apk_path, repo_dir / "apk" / apk_path.name)
+        icon = root / "assets" / "icon.png"
+        if icon.exists():
+            shutil.copy2(icon, repo_dir / "icon" / f"{entry['pkg']}.png")
         entries.append(entry)
 
     if not entries:
