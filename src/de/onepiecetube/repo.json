@@ -1,0 +1,13 @@
+{
+  "name": "OnePieceTube",
+  "lang": "de",
+  "nsfw": 0,
+  "sources": [
+    {
+      "name": "OnePieceTube",
+      "lang": "de",
+      "baseUrl": "https://onepiece.tube",
+      "versionId": 1
+    }
+  ]
+}
