@@ -70,6 +70,33 @@ def write_extension_fixture(
     )
 
 
+def write_fake_signed_apk(path: Path) -> None:
+    """APK-Zip mit echtem PKCS#7-Block (selbstsigniertes Zertifikat) in META-INF."""
+    import subprocess
+    import zipfile
+
+    work = path.parent
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+            "-subj", "/CN=test", "-keyout", str(work / "key.pem"), "-out", str(work / "cert.pem"),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            "openssl", "crl2pkcs7", "-nocrl", "-certfile", str(work / "cert.pem"),
+            "-outform", "DER", "-out", str(work / "CERT.RSA"),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.write(work / "CERT.RSA", "META-INF/CERT.RSA")
+        zf.writestr("classes.dex", b"dex")
+
+
 class GenerateRepoIndexTest(unittest.TestCase):
     def test_source_id_matches_keiyoushi_examples(self):
         generator = load_generator()
@@ -124,6 +151,45 @@ class GenerateRepoIndexTest(unittest.TestCase):
             self.assertTrue((root / "repo" / "apk" / "tachiyomi-en.example-v1.4.7-release.apk").exists())
             written = json.loads((root / "repo" / "index.min.json").read_text(encoding="utf-8"))
             self.assertEqual(written, index)
+
+    def test_writes_legacy_repo_json_for_suwayomi(self):
+        # Suwayomi >= 2.3 loeses legacy stores ueber repo.json neben index.min.json auf
+        generator = load_generator()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_extension_fixture(
+                root,
+                lang="de",
+                module="onepiecetube",
+                app_id="eu.kanade.tachiyomi.extension.de.onepiecetube",
+                apk_name="tachiyomi-de.onepiecetube-v1.4.1-release.apk",
+                version_code=1,
+                version_name="1.4.1",
+                name="OnePieceTube",
+                source_name="OnePieceTube",
+                source_lang="de",
+                base_url="https://onepiece.tube",
+            )
+
+            generator.generate_repository(root)
+
+            repo_json = json.loads((root / "repo" / "repo.json").read_text(encoding="utf-8"))
+            self.assertIsNone(repo_json["index_v2"])
+            self.assertEqual(repo_json["meta"]["name"], generator.REPO_NAME)
+            self.assertEqual(repo_json["meta"]["shortName"], generator.REPO_SHORT_NAME)
+            self.assertEqual(repo_json["meta"]["website"], generator.REPO_WEBSITE)
+            # Fake-APK ohne Signatur: Fingerprint bleibt leer statt den Build abzubrechen
+            self.assertEqual(repo_json["meta"]["signingKeyFingerprint"], "")
+
+    def test_signing_fingerprint_is_sha256_of_apk_certificate(self):
+        generator = load_generator()
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "signed.apk"
+            write_fake_signed_apk(apk)
+
+            fingerprint = generator.apk_signing_fingerprint(apk)
+
+            self.assertRegex(fingerprint, r"^[0-9a-f]{64}$")
 
 
 if __name__ == "__main__":

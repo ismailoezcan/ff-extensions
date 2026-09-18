@@ -2,10 +2,18 @@
 import hashlib
 import json
 import shutil
+import subprocess
+import zipfile
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Metadaten fuer repo.json: Suwayomi >= 2.3 laedt Legacy-Stores nur, wenn neben
+# index.min.json eine repo.json liegt (sonst HTTP 404 beim Registrieren).
+REPO_NAME = "FF Extensions"
+REPO_SHORT_NAME = "FF"
+REPO_WEBSITE = "https://github.com/ismailoezcan/ff-extensions"
 
 
 def source_id(name: str, lang: str, version_id: int = 1) -> str:
@@ -91,10 +99,72 @@ def extension_entry(extension_dir: Path) -> tuple[dict[str, Any], Path]:
     )
 
 
+def apk_signing_fingerprint(apk_path: Path) -> str:
+    """SHA-256-Fingerprint des Signaturzertifikats (lowercase hex, ohne Doppelpunkte).
+
+    Leerer String, wenn das APK keinen Signaturblock hat oder openssl fehlt --
+    Suwayomi verifiziert den Wert nicht, er ist nur informativ.
+    """
+    try:
+        with zipfile.ZipFile(apk_path) as archive:
+            block = next(
+                (
+                    name
+                    for name in archive.namelist()
+                    if name.startswith("META-INF/") and name.upper().endswith((".RSA", ".DSA", ".EC"))
+                ),
+                None,
+            )
+            if block is None:
+                return ""
+            der = archive.read(block)
+    except (zipfile.BadZipFile, OSError):
+        return ""
+
+    try:
+        certs = subprocess.run(
+            ["openssl", "pkcs7", "-inform", "DER", "-print_certs"],
+            input=der,
+            check=True,
+            capture_output=True,
+        ).stdout
+        fingerprint = subprocess.run(
+            ["openssl", "x509", "-noout", "-fingerprint", "-sha256"],
+            input=certs,
+            check=True,
+            capture_output=True,
+        ).stdout.decode("utf-8")
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+
+    return fingerprint.split("=", 1)[-1].strip().replace(":", "").lower()
+
+
+def write_repo_json(repo_dir: Path, signing_key_fingerprint: str) -> None:
+    repo_json = {
+        "index_v2": None,
+        "meta": {
+            "name": REPO_NAME,
+            "shortName": REPO_SHORT_NAME,
+            "website": REPO_WEBSITE,
+            "signingKeyFingerprint": signing_key_fingerprint,
+        },
+    }
+    (repo_dir / "repo.json").write_text(
+        json.dumps(repo_json, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def prepare_repo_dir(root: Path) -> Path:
     repo_dir = root / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
-    for stale in [*repo_dir.glob("*.apk"), repo_dir / "index.min.json", repo_dir / "icon.png"]:
+    for stale in [
+        *repo_dir.glob("*.apk"),
+        repo_dir / "index.min.json",
+        repo_dir / "repo.json",
+        repo_dir / "icon.png",
+    ]:
         stale.unlink(missing_ok=True)
     for stale_dir in [repo_dir / "apk", repo_dir / "icon"]:
         if stale_dir.exists():
@@ -110,9 +180,12 @@ def generate_repository(root: Path = ROOT) -> list[dict[str, Any]]:
     repo_dir = prepare_repo_dir(root)
 
     entries: list[dict[str, Any]] = []
+    signing_key_fingerprint = ""
     for extension_dir in extension_dirs(root):
         entry, apk_path = extension_entry(extension_dir)
         shutil.copy2(apk_path, repo_dir / "apk" / apk_path.name)
+        # Alle APKs tragen denselben Build-Key; der erste gefundene reicht.
+        signing_key_fingerprint = signing_key_fingerprint or apk_signing_fingerprint(apk_path)
         icon = root / "assets" / "icon.png"
         if icon.exists():
             shutil.copy2(icon, repo_dir / "icon" / f"{entry['pkg']}.png")
@@ -126,6 +199,7 @@ def generate_repository(root: Path = ROOT) -> list[dict[str, Any]]:
         json.dumps(entries, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
+    write_repo_json(repo_dir, signing_key_fingerprint)
     return entries
 
 
